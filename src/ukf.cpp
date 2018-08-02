@@ -64,6 +64,10 @@ UKF::UKF() {
 
   lambda_ = 3 - n_aug_;
 
+  weights_ = VectorXd(2 * n_aug_ + 1);
+  weights_.fill(0.5/(lambda_ + n_aug_));
+  weights_(0) = lambda_ / (lambda_ + n_aug_);
+
 }
 
 UKF::~UKF() {}
@@ -157,7 +161,7 @@ void UKF::Prediction(double delta_t) {
 	// Square root of P_aug matrix
 	MatrixXd A = P_aug.llt().matrixL();
 
-	// Generate the sigma points
+	// Generate the augmented sigma points
 	MatrixXd Xsig_aug = MatrixXd(n_aug_, 2 * n_aug_ + 1);
 
 	for (int i = 0; i < 2 * n_aug_ + 1; i++) {
@@ -176,6 +180,69 @@ void UKF::Prediction(double delta_t) {
 
 	}
 
+	// Sigma point prediction
+	double delta_t2 = delta_t * delta_t;
+
+	MatrixXd Xsig_pred = MatrixXd(n_x_, 2 * n_aug_ + 1);
+
+
+	for (int i = 0; i< 2 * n_aug_ + 1; i++) {
+
+		double px = Xsig_aug(0, i);
+		double py = Xsig_aug(1, i);
+		double v = Xsig_aug(2, i);
+		double si = Xsig_aug(3, i);
+		double sidot = Xsig_aug(4, i);
+		double va = Xsig_aug(5, i);
+		double vsidd = Xsig_aug(6, i);
+
+		if (abs(sidot) == 0)
+		{
+			Xsig_pred(0, i) = px + v * cos(si)*delta_t + 0.5*delta_t2*cos(si)*va;
+			Xsig_pred(1, i) = py + v * sin(si)*delta_t + 0.5*delta_t2*sin(si)*va;
+			Xsig_pred(2, i) = v + delta_t * va;
+			Xsig_pred(3, i) = si + sidot * delta_t + 0.5*delta_t2*vsidd;
+			Xsig_pred(4, i) = sidot + delta_t * vsidd;
+		}
+		else
+		{
+			Xsig_pred(0, i) = px + (v / sidot)*(sin(si + sidot * delta_t) - sin(si)) + 0.5*delta_t2*cos(si)*va;
+			Xsig_pred(1, i) = py + (v / sidot)*(-cos(si + sidot * delta_t) + cos(si)) + 0.5*delta_t2*sin(si)*va;
+			Xsig_pred(2, i) = v + delta_t * va;
+			Xsig_pred(3, i) = si + sidot * delta_t + 0.5*delta_t2*vsidd;
+			Xsig_pred(4, i) = sidot + delta_t * vsidd;
+		}
+
+
+	}
+
+	// Predic the mean and the covariance matrix
+	//create vector for predicted state
+	VectorXd x = VectorXd(n_x_);
+
+	//create covariance matrix for prediction
+	MatrixXd P = MatrixXd(n_x_, n_x_);
+
+
+	for (int i = 1; i < 2 * n_aug_ + 1; i++)
+	{
+		weights_(i) = 0.5 / (lambda_ + n_aug_);
+	}
+	//predict state mean
+	for (int i = 0; i < 2 * n_aug_ + 1; i++)
+	{
+		x += weights_(i)*Xsig_pred.col(i);
+	}
+
+	//predict state covariance matrix
+	for (int i = 0; i < 2 * n_aug_ + 1; i++)
+	{
+		P += weights_(i)*(Xsig_pred.col(i) - x)*(Xsig_pred.col(i) - x).transpose();
+	}
+	
+	// Update the state vectors and covariance matrix
+	x_ = x;
+	P_ = P;
 
 }
 

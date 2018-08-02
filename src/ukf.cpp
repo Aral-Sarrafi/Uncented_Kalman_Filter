@@ -56,6 +56,8 @@ UKF::UKF() {
   */
   is_initialized_ = false;
 
+  previous_timestamp = 0;
+
 }
 
 UKF::~UKF() {}
@@ -72,8 +74,17 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
   measurements.
   */
 	if (!is_initialized_) {
+		// Initiate the state vector
 		x_ << 0, 0, 0, 0, 0;
 
+		// Initiate the Covariance Matrix
+		P_.fill(0.0);
+		for (int i = 0; i < x_.size(); i++)
+		{
+			P_(i, i) = 1;
+		}
+
+		// Use the first measurement info as the first state vector
 		if (meas_package.sensor_type_ == MeasurementPackage::RADAR) {
 			x_(0) = meas_package.raw_measurements_[0] * cos(meas_package.raw_measurements_[1]);
 			x_(1) = meas_package.raw_measurements_[0] * sin(meas_package.raw_measurements_[1]);
@@ -84,9 +95,27 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
 			x_(0) = meas_package.raw_measurements_[1];
 		}
 
+		previous_timestamp = meas_package.timestamp_;
+		is_initialized_ = true;
+
+		return;
 	}
 	else
 	{
+		double delta_t = (meas_package.timestamp_ - previous_timestamp) / 1000000.0;
+		previous_timestamp = meas_package.timestamp_;
+
+		Prediction(delta_t);
+
+		if (meas_package.sensor_type_ == MeasurementPackage::RADAR)
+		{
+			UpdateRadar(meas_package);
+		}
+		else if (meas_package.sensor_type_ == MeasurementPackage::LASER) {
+
+			UpdateLidar(meas_package);
+
+		}
 
 	}
 }

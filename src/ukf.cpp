@@ -51,9 +51,11 @@ UKF::UKF() {
   TODO:
 
   Complete the initialization. See ukf.h for other member properties.
-
+  
   Hint: one or more values initialized above might be wildly off...
   */
+  is_initialized_ = false;
+
 }
 
 UKF::~UKF() {}
@@ -69,6 +71,24 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
   Complete this function! Make sure you switch between lidar and radar
   measurements.
   */
+	if (!is_initialized_) {
+		x_ << 0, 0, 0, 0, 0;
+
+		if (meas_package.sensor_type_ == MeasurementPackage::RADAR) {
+			x_(0) = meas_package.raw_measurements_[0] * cos(meas_package.raw_measurements_[1]);
+			x_(1) = meas_package.raw_measurements_[0] * sin(meas_package.raw_measurements_[1]);
+		}
+		else if (meas_package.sensor_type_ == MeasurementPackage::LASER) {
+
+			x_(0) = meas_package.raw_measurements_[0];
+			x_(0) = meas_package.raw_measurements_[1];
+		}
+
+	}
+	else
+	{
+
+	}
 }
 
 /**

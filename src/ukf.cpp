@@ -57,7 +57,7 @@ UKF::UKF() {
   */
   is_initialized_ = false;
 
-  previous_timestamp = 0.0;
+  time_us_ = 0.0;
 
   // State space dimension
   n_x_ = 5;
@@ -105,7 +105,7 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
 				  0,    0, 0, 0, 1;
 
 			// Use the first measurement info as the first state vector
-			previous_timestamp = meas_package.timestamp_;
+			time_us_ = meas_package.timestamp_;
 
 			if (meas_package.sensor_type_ == MeasurementPackage::RADAR && use_radar_) {
 				x_(0) = meas_package.raw_measurements_(0)* cos(meas_package.raw_measurements_(1));
@@ -114,33 +114,29 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
 			else if (meas_package.sensor_type_ == MeasurementPackage::LASER && use_laser_) {
 
 				x_(0) = meas_package.raw_measurements_(0);
-				x_(0) = meas_package.raw_measurements_(1);
+				x_(1) = meas_package.raw_measurements_(1);
 			}
 
 			is_initialized_ = true;
 
 			return;
 		}
-		else
-		{
-			// After initialization run the prediction and update loop for UKF estimations
+		
+		// After initialization run the prediction and update loop for UKF estimations
 
-			double delta_t = (meas_package.timestamp_ - previous_timestamp) / 1000000.0;
-			previous_timestamp = meas_package.timestamp_;
+		float delta_t = (meas_package.timestamp_ - time_us_) / 1000000.0;
+		time_us_ = meas_package.timestamp_;
 
-			Prediction(delta_t);
+		Prediction(delta_t);
 
-			if (meas_package.sensor_type_ == MeasurementPackage::RADAR){
+		if (meas_package.sensor_type_ == MeasurementPackage::RADAR){
 				UpdateRadar(meas_package);
-			}
-			else if (meas_package.sensor_type_ == MeasurementPackage::LASER) {
+		}
+		else if (meas_package.sensor_type_ == MeasurementPackage::LASER) {
 
 				UpdateLidar(meas_package);
-			}
 		}
 	}
-
-	
 }
 
 /**
@@ -157,19 +153,18 @@ void UKF::Prediction(double delta_t) {
   */
 	// Generate the augmented state vector
 	VectorXd x_aug = VectorXd(n_aug_);
-	x_aug.fill(0.0);
+
 	x_aug.head(n_x_) = x_;
+	x_aug(5) = 0;
+	x_aug(6) = 0;
 
 	// Generate the augmented covariance matrix
-	MatrixXd Q = MatrixXd(2, 2);
-	Q.fill(0.0);
-	Q(0, 0) = std_a_ * std_a_;
-	Q(1, 1) = std_yawdd_ * std_yawdd_;
-
 	MatrixXd P_aug = MatrixXd(n_aug_, n_aug_);
+	P_aug.fill(0.0);
 
 	P_aug.topLeftCorner(n_x_, n_x_) = P_;
-	P_aug.bottomRightCorner(2, 2) = Q;
+	P_aug(5,5) = std_a_ * std_a_;
+	P_aug(6,6) = std_yawdd_ * std_yawdd_;
 
 	// Square root of P_aug matrix
 	MatrixXd L = P_aug.llt().matrixL();
@@ -185,7 +180,7 @@ void UKF::Prediction(double delta_t) {
 	}
 
 	// Sigma point prediction
-
+	//predict sigma points
 	for (int i = 0; i < 2 * n_aug_ + 1; i++)
 	{
 		//extract values for better readability
@@ -291,14 +286,18 @@ void UKF::UpdateLidar(MeasurementPackage meas_package) {
 
 	//mean predicted measurement
 	VectorXd z_pred = VectorXd(n_z);
+
 	z_pred.fill(0.0);
+
 	for (int i = 0; i < 2 * n_aug_ + 1; i++) {
 		z_pred = z_pred + weights_(i) * Zsig.col(i);
 	}
 
 	//innovation covariance matrix S
 	MatrixXd S = MatrixXd(n_z, n_z);
+
 	S.fill(0.0);
+
 	for (int i = 0; i < 2 * n_aug_ + 1; i++) {  //2n+1 simga points
 												//residual
 		VectorXd z_diff = Zsig.col(i) - z_pred;
@@ -307,8 +306,9 @@ void UKF::UpdateLidar(MeasurementPackage meas_package) {
 	}
 	//add measurement noise covariance matrix
 	MatrixXd R = MatrixXd(n_z, n_z);
-	R(0, 0) = std_laspx_ * std_laspx_;
-	R(1, 1) = std_laspy_ * std_laspy_;
+
+	R << std_laspx_ * std_laspx_, 0,
+		0, std_laspy_*std_laspy_;
 	S = S + R;
 
 	// Update the state and the covariance matrix

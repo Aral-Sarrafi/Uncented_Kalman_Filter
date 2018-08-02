@@ -58,6 +58,12 @@ UKF::UKF() {
 
   previous_timestamp = 0;
 
+  n_x_ = 5;
+
+  n_aug_ = 7;
+
+  lambda_ = 3 - n_aug_;
+
 }
 
 UKF::~UKF() {}
@@ -132,6 +138,45 @@ void UKF::Prediction(double delta_t) {
   Complete this function! Estimate the object's location. Modify the state
   vector, x_. Predict sigma points, the state, and the state covariance matrix.
   */
+	// Generate the augmented state vector
+	VectorXd x_aug = VectorXd(n_aug_);
+	x_aug.fill(0.0);
+	x_aug.head(n_x_) = x_;
+
+	// Generate the augmented covariance matrix
+	MatrixXd Q = MatrixXd(2, 2);
+	Q.fill(0.0);
+	Q(0, 0) = std_a_ * std_a_;
+	Q(1, 1) = std_yawdd_ * std_yawdd_;
+
+	MatrixXd P_aug = MatrixXd(n_aug_, n_aug_);
+
+	P_aug.topLeftCorner(n_x_, n_x_) = P_;
+	P_aug.bottomRightCorner(2, 2) = Q;
+
+	// Square root of P_aug matrix
+	MatrixXd A = P_aug.llt().matrixL();
+
+	// Generate the sigma points
+	MatrixXd Xsig_aug = MatrixXd(n_aug_, 2 * n_aug_ + 1);
+
+	for (int i = 0; i < 2 * n_aug_ + 1; i++) {
+		if (i == 0)
+		{
+			Xsig_aug.col(i) = x_aug;
+		}
+		else if (i <= n_aug_ && i > 0)
+		{
+			Xsig_aug.col(i) = x_aug + sqrt(lambda_ + n_aug_)*A.col(i - 1);
+
+		}
+		else if (i > n_aug_) {
+			Xsig_aug.col(i) = x_aug - sqrt(lambda_ + n_aug_)*A.col(i - n_aug_ - 1);
+		}
+
+	}
+
+
 }
 
 /**
